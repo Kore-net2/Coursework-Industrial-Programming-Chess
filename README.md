@@ -11,6 +11,8 @@ Python 3 desktop and command-line application for the chess metadata tasks in Co
 
 Интерфейс и сообщения приложения на английском языке. Расчёты не требуют подключения к интернету.
 
+Интерфейс использует встроенную системную тему Windows (`vista`, с запасными вариантами `xpnative` и `winnative`) и системный шрифт TkDefaultFont. Заголовки используют тот же шрифт с увеличенным размером. Диаграммы в GUI наследуют системный шрифт и цвета окна, текста и выделения. На других ОС сохраняется доступная тема Tkinter.
+
 ## Run from source
 
 Python 3.10 or newer with Tk support is required. Tested with Python 3.12 on Windows. In this directory:

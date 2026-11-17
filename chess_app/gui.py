@@ -5,7 +5,7 @@ from pathlib import Path
 import queue
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, ttk, font as tkfont
 
 from .analysis import METRICS, overview, players, popular_openings, similar_players, top_players
 from .chart import opening_figure
@@ -20,7 +20,6 @@ class ChessApp(tk.Tk):
         self.title("Chess Analytics | F20SC")
         self.geometry("1120x800")
         self.minsize(920, 680)
-        self.configure(background="#f3f6fa")
         self.database = None
         self.player_names = []
         self.events = queue.Queue()
@@ -41,18 +40,33 @@ class ChessApp(tk.Tk):
 
     def style_ui(self):
         style = ttk.Style(self)
-        style.theme_use("clam")
-        style.configure(".", font=("Segoe UI", 10))
-        style.configure("TFrame", background="#f3f6fa")
-        style.configure("TLabel", background="#f3f6fa", foreground="#24364b")
-        style.configure("Title.TLabel", font=("Segoe UI", 25, "bold"), foreground="#142b48")
-        style.configure("Subtitle.TLabel", foreground="#61738a")
+        for theme in ("vista", "xpnative", "winnative"):
+            if theme in style.theme_names():
+                style.theme_use(theme)
+                break
+        self.ui_font = tkfont.nametofont("TkDefaultFont")
+        self.title_font = self.ui_font.copy()
+        self.title_font.configure(size=abs(self.ui_font.cget("size")) * 2, weight="bold")
+        self.section_font = self.ui_font.copy()
+        self.section_font.configure(size=abs(self.ui_font.cget("size")) + 3, weight="bold")
+        self.heading_font = self.ui_font.copy()
+        self.heading_font.configure(weight="bold")
+        self.option_add("*Font", self.ui_font)
+        background = style.lookup("TFrame", "background") or self.cget("background")
+        self.configure(background=background)
+        style.configure(".", font=self.ui_font)
+        style.configure("Title.TLabel", font=self.title_font)
+        style.configure("Subtitle.TLabel", font=self.ui_font)
         style.configure("TButton", padding=(12, 7))
-        style.configure("Accent.TButton", background="#2869aa", foreground="white")
-        style.map("Accent.TButton", background=[("active", "#1d5287"), ("disabled", "#98a9bc")])
-        style.configure("Treeview", rowheight=29, fieldbackground="white", background="white")
-        style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), padding=7)
-        style.configure("TNotebook.Tab", padding=(18, 10))
+        style.configure("Treeview", font=self.ui_font, rowheight=self.ui_font.metrics("linespace") + 12)
+        style.configure("Treeview.Heading", font=self.heading_font, padding=7)
+        style.configure("TNotebook.Tab", font=self.ui_font, padding=(18, 10))
+
+    def chart_color(self, name, fallback):
+        try:
+            return "#" + "".join(f"{component // 257:02x}" for component in self.winfo_rgb(name))
+        except tk.TclError:
+            return fallback
 
     def action(self, parent, text, command, accent=False):
         button = ttk.Button(parent, text=text, command=lambda: self.guard(command),
@@ -74,7 +88,7 @@ class ChessApp(tk.Tk):
         dataset = ttk.Frame(body)
         dataset.pack(fill="x", pady=(0, 12))
         self.action(dataset, "Open database", self.load_dialog, True).pack(side="right")
-        ttk.Label(dataset, textvariable=self.file_label, font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(dataset, textvariable=self.file_label, font=self.heading_font).pack(anchor="w")
         ttk.Label(dataset, textvariable=self.stats_label, style="Subtitle.TLabel").pack(anchor="w", pady=(4, 0))
         self.notebook = ttk.Notebook(body)
         self.notebook.pack(fill="both", expand=True)
@@ -97,7 +111,7 @@ class ChessApp(tk.Tk):
         ttk.Label(footer, textvariable=self.status, wraplength=700, style="Subtitle.TLabel").pack(side="left", fill="x", expand=True)
 
     def build_import(self):
-        ttk.Label(self.import_tab, text="Prepare your dataset", font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        ttk.Label(self.import_tab, text="Prepare your dataset", font=self.section_font).pack(anchor="w")
         ttk.Label(self.import_tab, text="Read a Lichess .pgn.zst archive or a plain .pgn file. Only bullet, blitz and rapid games are retained.", wraplength=850).pack(anchor="w", pady=(6, 20))
         self.raw_path = tk.StringVar()
         self.output_path = tk.StringVar()
@@ -108,7 +122,7 @@ class ChessApp(tk.Tk):
             ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True, padx=(0, 10))
             self.action(row, "Browse…", browse).pack(side="right")
         self.action(self.import_tab, "Import and open dataset", self.import_data, True).pack(anchor="w", pady=20)
-        self.import_log = tk.Text(self.import_tab, height=9, wrap="word", relief="flat", background="white", foreground="#34465a", padx=14, pady=14, font=("Consolas", 10), state="disabled")
+        self.import_log = tk.Text(self.import_tab, height=9, wrap="word", relief="sunken", borderwidth=1, padx=14, pady=14, font=self.ui_font, state="disabled")
         self.import_log.pack(fill="both", expand=True)
         self.log("Import details appear here.\n\nMissing or invalid metadata is counted and reported.\nExisting output files are replaced only after a successful import.")
 
@@ -267,7 +281,11 @@ class ChessApp(tk.Tk):
         from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
         self.clear_chart()
         self.chart_hint.pack_forget()
-        self.last_figure = opening_figure(total, rows, subtitle)
+        self.last_figure = opening_figure(
+            total, rows, subtitle, font_family=self.ui_font.actual("family"),
+            colors={"background": self.chart_color("SystemWindow", "white"),
+                    "text": self.chart_color("SystemWindowText", "black"),
+                    "accent": self.chart_color("SystemHighlight", "#0078d7")})
         self.chart_canvas = FigureCanvasTkAgg(self.last_figure, master=self.chart_frame)
         self.chart_toolbar = NavigationToolbar2Tk(self.chart_canvas, self.chart_frame, pack_toolbar=False)
         self.chart_toolbar.pack(side="bottom", fill="x")
