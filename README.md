@@ -27,6 +27,15 @@ On Linux, install your distribution's `python3-tk` package if Tk is unavailable.
 
 ## Required CLI commands
 
+Import all `.pgn` and `.pgn.zst` files directly inside a folder into one database, or pass several files in order. Existing single-file commands still work.
+
+```powershell
+python cw2.py --raw-data=dataset_folder --outfile=games.sqlite
+python cw2.py --raw-data "part 1.pgn.zst" "part 2.pgn.zst" --outfile=games.sqlite
+```
+
+In the GUI, **Browse…** supports multiple input files and **Choose input folder…** selects a dataset folder. A batch is saved only after every file has been read successfully. See [TEAM_CHANGES.md](TEAM_CHANGES.md) for implementation changes and verification details.
+
 ```powershell
 python cw2.py --raw-data=games.pgn.zst --outfile=games.sqlite
 python cw2.py --datafile=games.sqlite --popular-openings --time-control=blitz --min-rating=1200 --max-rating=1800
@@ -55,7 +64,7 @@ Unknown options or invalid combinations return exit code 2. Runtime errors retur
 - Rating filters include both endpoints. Opening percentages use **all** matching games as the denominator; only bars at or above 1% are displayed. Displayed bars need not total 100%.
 - Improvement is last post-game minus first pre-game rating for the selected control, counting both colours. Input need not be sorted. Simultaneous timestamps are ordered by original record order. With fewer than ten players, all are returned; negative changes remain eligible.
 - Time-format similarity uses percentages from 0 to 100 and Euclidean distance. Black-opening similarity only compares players with the same favourite opening and uses the absolute difference in percentages. A tied favourite is resolved alphabetically. Players without black games are ineligible for that metric. The target is excluded; equal distances sort by player name.
-- Input files are not modified. Import builds a temporary database beside the destination and replaces the destination only on success. CLI `--outfile` authorizes replacement; the GUI asks before replacing an existing file. Cancellation or failure preserves the existing destination.
+- Input files are not modified. Import builds a temporary database beside the destination and replaces the destination only on success. CLI `--outfile` authorizes replacement; the GUI asks before replacing an existing file. Cancellation or failure in any file preserves the existing destination. Repeated resolved input paths are imported once; folders are scanned non-recursively in filename order. Empty files cause a batch error. Games with invalid required metadata are skipped and counted as before.
 - Duplicate records are retained: no game identifier is required by the assignment. Input is assumed to be a rated Lichess export. Invalid movetext is outside the metadata analysis scope.
 
 ## Project structure
@@ -100,3 +109,4 @@ The synthetic demo is generated locally and contains no actual player data.
 - [matplotlib](https://matplotlib.org/stable/)
 
 python-chess is licensed under GPL-3.0-or-later. If redistributing the bundled executable, retain third-party notices and comply with dependency licences, including availability of corresponding source. This package includes its application source; third-party projects retain their own licences.
+

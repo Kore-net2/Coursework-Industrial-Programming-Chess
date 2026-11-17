@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox, ttk, font as tkfont
 
 from .analysis import METRICS, overview, players, popular_openings, similar_players, top_players
 from .chart import opening_figure
-from .storage import AppError, Cancelled, TIME_CONTROLS, open_database, preprocess
+from .storage import AppError, Cancelled, TIME_CONTROLS, open_database, preprocess, error_message
 
 
 class ChessApp(tk.Tk):
@@ -36,7 +36,7 @@ class ChessApp(tk.Tk):
         self.style_ui()
         self.build_ui()
         self.protocol("WM_DELETE_WINDOW", self.close_app)
-        self.after(100, self.poll)
+        self.poll_id = self.after(100, self.poll)
 
     def style_ui(self):
         # clam is bundled with Tk: all styling below uses standard ttk controls.
@@ -115,7 +115,7 @@ class ChessApp(tk.Tk):
         try:
             callback()
         except Exception as exc:
-            messagebox.showerror("Unable to complete task", str(exc), parent=self)
+            messagebox.showerror("Unable to complete task", error_message(exc), parent=self)
 
     def build_ui(self):
         body = ttk.Frame(self, padding=28, style="Page.TFrame")
@@ -149,8 +149,10 @@ class ChessApp(tk.Tk):
 
     def build_import(self):
         ttk.Label(self.import_tab, text="Prepare your dataset", font=self.section_font).pack(anchor="w")
-        ttk.Label(self.import_tab, text="Read a Lichess .pgn.zst archive or a plain .pgn file. Only bullet, blitz and rapid games are retained.", wraplength=850).pack(anchor="w", pady=(6, 20))
+        ttk.Label(self.import_tab, text="Read multiple .pgn.zst archives, plain .pgn files or a folder. Only bullet, blitz and rapid games are retained.", wraplength=850).pack(anchor="w", pady=(6, 20))
         self.raw_path = tk.StringVar()
+        self.selected_sources = ()
+        self.selected_sources_text = ""
         self.output_path = tk.StringVar()
         for label, variable, browse in (("Raw PGN file", self.raw_path, self.browse_raw), ("Output database", self.output_path, self.browse_output)):
             ttk.Label(self.import_tab, text=label).pack(anchor="w", pady=(8, 4))
@@ -158,6 +160,7 @@ class ChessApp(tk.Tk):
             row.pack(fill="x")
             ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True, padx=(0, 10))
             self.action(row, "Browse…", browse).pack(side="right")
+        self.action(self.import_tab, "Choose input folder…", self.browse_folder).pack(anchor="w", pady=(10, 0))
         self.action(self.import_tab, "Import and open dataset", self.import_data, True).pack(anchor="w", pady=20)
         self.import_log = tk.Text(self.import_tab, height=9, wrap="word", relief="flat", borderwidth=0, highlightthickness=1, highlightbackground=self.palette["border"], background=self.palette["field"], foreground=self.palette["muted"], insertbackground=self.palette["text"], padx=18, pady=18, font=self.ui_font, state="disabled")
         self.import_log.pack(fill="both", expand=True)
@@ -215,12 +218,15 @@ class ChessApp(tk.Tk):
         self.search = tk.StringVar()
         self.selected_player = tk.StringVar()
         self.metric_choice = tk.StringVar(value="Time formats")
+        self.black_player_names = []
+        self.metric_choice.trace_add("write", lambda *_: self.filter_players())
         for column, label in enumerate(("Search players", "Player", "Compare by")):
             ttk.Label(row, text=label, style="Subtitle.TLabel").grid(row=0, column=column, sticky="w", pady=(0, 7))
             row.columnconfigure(column, weight=1)
         ttk.Entry(row, textvariable=self.search, width=16).grid(row=1, column=0, sticky="ew", padx=(0, 12))
         self.player_combo = ttk.Combobox(row, textvariable=self.selected_player, state="readonly", width=20)
         self.player_combo.grid(row=1, column=1, sticky="ew", padx=(0, 12))
+        ttk.Label(row, text="Up to 300 matches. Narrow the search to find more players.", style="Subtitle.TLabel").grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
         self.search.trace_add("write", lambda *_: self.filter_players())
         ttk.Combobox(row, textvariable=self.metric_choice, values=("Time formats", "Black openings"), state="readonly", width=16).grid(row=1, column=2, sticky="ew", padx=(0, 12))
         self.action(row, "Find similar", self.run_similar, True).grid(row=1, column=3, sticky="e")
@@ -235,10 +241,19 @@ class ChessApp(tk.Tk):
         self.import_log.configure(state="disabled")
 
     def browse_raw(self):
-        name = filedialog.askopenfilename(parent=self, title="Choose Lichess PGN", filetypes=[("PGN data", "*.pgn *.zst"), ("All files", "*.*")])
+        names = filedialog.askopenfilenames(parent=self, title="Choose Lichess PGN files", filetypes=[("PGN data", "*.pgn *.zst"), ("All files", "*.*")])
+        if names:
+            self.selected_sources = tuple(names)
+            self.selected_sources_text = "; ".join(names)
+            self.raw_path.set(self.selected_sources_text)
+            self.output_path.set(str(Path(names[0]).parent / "games.sqlite"))
+
+    def browse_folder(self):
+        name = filedialog.askdirectory(parent=self, title="Choose folder containing PGN files")
         if name:
+            self.selected_sources = ()
             self.raw_path.set(name)
-            self.output_path.set(str(Path(name).with_suffix(".sqlite")))
+            self.output_path.set(str(Path(name) / "games.sqlite"))
 
     def browse_output(self):
         name = filedialog.asksaveasfilename(parent=self, title="Save prepared database", defaultextension=".sqlite", filetypes=[("SQLite database", "*.sqlite")])
@@ -254,9 +269,9 @@ class ChessApp(tk.Tk):
         def work():
             with open_database(name) as connection:
                 connection.set_progress_handler(lambda: int(self.cancel.is_set()), 10000)
-                return overview(connection), players(connection)
+                return overview(connection), players(connection), [row[0] for row in connection.execute("SELECT DISTINCT black FROM games ORDER BY black")]
         def done(result):
-            stats, self.player_names = result
+            stats, self.player_names, self.black_player_names = result
             self.database = name
             self.file_label.set(Path(name).name)
             self.stats_label.set(f"{stats['games']:,} games  ·  {len(self.player_names):,} players  ·  {stats['openings']:,} openings  ·  UTC {stats['first'][:10]} to {stats['last'][:10]}" if stats['games'] else "Empty dataset")
@@ -271,7 +286,8 @@ class ChessApp(tk.Tk):
 
     def filter_players(self):
         query = self.search.get().casefold()
-        matches = [p for p in self.player_names if query in p.casefold()][:300]
+        eligible = self.black_player_names if self.metric_choice.get() == "Black openings" else self.player_names
+        matches = [p for p in eligible if query in p.casefold()][:300]
         self.player_combo.configure(values=matches)
         if self.selected_player.get() not in matches:
             self.selected_player.set(matches[0] if matches else "")
@@ -282,6 +298,8 @@ class ChessApp(tk.Tk):
             raise AppError("Select both a raw file and an output database.")
         if Path(target).exists() and not messagebox.askyesno("Replace database?", f"Replace {target} after a successful import?", parent=self):
             return
+        if self.selected_sources and source == self.selected_sources_text:
+            source = self.selected_sources
         def done(summary):
             self.log(summary.describe())
             self.load_path(target)
@@ -400,13 +418,19 @@ class ChessApp(tk.Tk):
                         self.status.set("Task cancelled.")
                     else:
                         self.status.set("Task failed. Correct the input and try again.")
-                        messagebox.showerror("Unable to complete task", str(value), parent=self)
+                        messagebox.showerror("Unable to complete task", error_message(value), parent=self)
                 else:
                     self.status.set("Task complete.")
                     self.guard(lambda: self.done_callback(value))
         except queue.Empty:
             pass
-        self.after(100, self.poll)
+        self.poll_id = self.after(100, self.poll)
+
+    def destroy(self):
+        if getattr(self, "poll_id", None) is not None:
+            self.after_cancel(self.poll_id)
+            self.poll_id = None
+        super().destroy()
 
     def close_app(self):
         if self.busy:
@@ -421,3 +445,4 @@ class ChessApp(tk.Tk):
 def launch():
     app = ChessApp()
     app.mainloop()
+

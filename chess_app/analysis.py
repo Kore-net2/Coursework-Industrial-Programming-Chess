@@ -3,6 +3,7 @@
 """
 from dataclasses import dataclass
 from math import dist
+from heapq import nsmallest
 from typing import Protocol
 from .storage import AppError, TIME_CONTROLS
 
@@ -26,8 +27,8 @@ def overview(connection):
 def popular_openings(connection, control=None, minimum=None, maximum=None):
     validate_control(control)
     for value in (minimum, maximum):
-        if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
-            raise AppError("Rating limits must be integers.")
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
+            raise AppError("Rating limits must be non-negative integers.")
     if minimum is not None and maximum is not None and minimum > maximum:
         raise AppError("Minimum rating must not exceed maximum rating.")
     clauses, values = [], []
@@ -123,15 +124,16 @@ def similar_players(connection, name, metric: SimilarityMetric):
         raise AppError(f"Unknown player: {name}")
     profiles = metric.profiles(connection)
     if name not in profiles:
-        raise AppError(f"No eligible games for {name}; this metric requires games played as black.")
+        raise AppError(f"No eligible games for {name} under the selected similarity metric.")
     target = profiles[name]
-    candidates = []
-    for player, profile in profiles.items():
-        if player != name:
-            distance = metric.distance(target, profile)
-            if distance is not None:
-                candidates.append((distance, player, profile))
-    candidates.sort(key=lambda item: (item[0], item[1]))
+    def candidates():
+        for player, profile in profiles.items():
+            if player != name:
+                distance = metric.distance(target, profile)
+                if distance is not None:
+                    yield distance, player, profile
+    closest = nsmallest(10, candidates(), key=lambda item: (item[0], item[1]))
     return metric.describe(target), [
         {"Player": player, "Distance": distance, "Profile": metric.describe(profile)}
-        for distance, player, profile in candidates[:10]]
+        for distance, player, profile in closest]
+

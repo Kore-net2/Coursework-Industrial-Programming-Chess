@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import io
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -158,6 +159,42 @@ class VerifiedZstdReader(io.RawIOBase):
         return size
 
 
+def input_files(raw_path):
+    """Resolve one file, a folder, or an ordered collection; import each path once."""
+    entries = [raw_path] if isinstance(raw_path, (str, os.PathLike)) else list(raw_path)
+    sources = []
+    for entry in entries:
+        path = Path(entry).expanduser().resolve()
+        if path.is_dir():
+            files = sorted(p for p in path.iterdir() if p.is_file() and
+                           (p.name.lower().endswith('.pgn.zst') or p.suffix.lower() == '.pgn'))
+            if not files:
+                raise AppError(f"No .pgn or .pgn.zst files in folder: {path}")
+        else:
+            files = [path]
+        for source in files:
+            if not source.is_file():
+                raise AppError(f"Input file does not exist: {source}")
+            if source not in sources:
+                sources.append(source)
+    if not sources:
+        raise AppError("Select at least one PGN file or a folder containing PGN files.")
+    return sources
+
+
+def error_message(exc):
+    """Shared user-facing errors for command-line and desktop entry points."""
+    if isinstance(exc, PermissionError):
+        return f"Access denied: {exc.filename or 'selected file'}. Choose a readable input and a writable output folder; close applications using the output."
+    if isinstance(exc, ModuleNotFoundError):
+        return f"Missing dependency: {exc.name}. Run: python -m pip install -r requirements.txt"
+    if isinstance(exc, OSError):
+        return f"File operation failed: {exc}. Check the path, available disk space and file permissions."
+    if isinstance(exc, UnicodeError):
+        return "The PGN is not valid UTF-8 text. Select the original .pgn.zst archive or a UTF-8 PGN export."
+    return str(exc)
+
+
 def preprocess(raw_path, output_path, progress=None, cancel=None):
     """Atomically create a database; a failed import never replaces the destination.
 
@@ -165,11 +202,11 @@ def preprocess(raw_path, output_path, progress=None, cancel=None):
     --outfile explicitly selects the destination to replace after success.
     """
     import chess.pgn
-    source, destination = Path(raw_path).resolve(), Path(output_path).resolve()
-    if source == destination:
+    import zstandard
+    sources = input_files(raw_path)
+    destination = Path(output_path).expanduser().resolve()
+    if any(source == destination or (destination.exists() and source.samefile(destination)) for source in sources):
         raise AppError("Input and output must be different files.")
-    if not source.is_file():
-        raise AppError(f"Input file does not exist: {source}")
     if not destination.parent.is_dir():
         raise AppError(f"Output folder does not exist: {destination.parent}")
     descriptor, temporary = tempfile.mkstemp(prefix=".chess-import-", suffix=".sqlite", dir=destination.parent)
@@ -178,31 +215,47 @@ def preprocess(raw_path, output_path, progress=None, cancel=None):
     connection = None
     try:
         connection = sqlite3.connect(temporary)
+        if cancel:
+            connection.set_progress_handler(lambda: int(cancel.is_set()), 10000)
         connection.executescript(SCHEMA)
         connection.execute("INSERT INTO metadata VALUES ('schema_version', ?)", (SCHEMA_VERSION,))
-        with pgn_text(source) as text:
-            while True:
-                if cancel and cancel.is_set():
-                    raise Cancelled("Import cancelled. The destination was not changed.")
-                headers = chess.pgn.read_headers(text)
-                if headers is None:
-                    break
-                summary.read += 1
-                try:
-                    row = normalize_headers(headers)
-                    if row is None:
-                        summary.excluded += 1
-                    else:
-                        connection.execute("INSERT INTO games VALUES (NULL,?,?,?,?,?,?,?,?,?,?)", row)
-                        summary.kept += 1
-                except (ValueError, KeyError) as exc:
-                    summary.malformed += 1
-                    if len(summary.examples) < 5:
-                        summary.examples.append(f"Record {summary.read}: {exc}")
-                if summary.read % 2000 == 0:
-                    connection.commit()
-                    if progress:
-                        progress(summary.describe())
+        for source in sources:
+            file_records = 0
+            if progress:
+                progress(f"Reading {source.name}...")
+            try:
+                with pgn_text(source) as text:
+                    while True:
+                        if cancel and cancel.is_set():
+                            raise Cancelled("Import cancelled. The destination was not changed.")
+                        headers = chess.pgn.read_headers(text)
+                        if headers is None:
+                            break
+                        summary.read += 1
+                        file_records += 1
+                        try:
+                            row = normalize_headers(headers)
+                            if row is None:
+                                summary.excluded += 1
+                            else:
+                                connection.execute("INSERT INTO games VALUES (NULL,?,?,?,?,?,?,?,?,?,?)", row)
+                                summary.kept += 1
+                        except (ValueError, KeyError) as exc:
+                            summary.malformed += 1
+                            if len(summary.examples) < 5:
+                                summary.examples.append(f"{source.name}, record {file_records}: {exc}")
+                        if summary.read % 2000 == 0:
+                            connection.commit()
+                            if progress:
+                                progress(summary.describe())
+            except (OSError, UnicodeError, AppError) as exc:
+                if isinstance(exc, Cancelled):
+                    raise
+                raise AppError(f"Cannot import {source.name}: {error_message(exc)}") from exc
+            except zstandard.ZstdError as exc:
+                raise AppError(f"Corrupt Zstandard archive: {source.name}. Download the file again.") from exc
+            if file_records == 0:
+                raise AppError(f"No PGN records found in {source.name}. Check the input file.")
         if summary.kept == 0:
             raise AppError("No usable bullet, blitz or rapid games found.\n" + summary.describe())
         if progress:
@@ -213,7 +266,9 @@ def preprocess(raw_path, output_path, progress=None, cancel=None):
             CREATE INDEX games_black ON games(black, time_control, played_at, id);
             CREATE INDEX games_opening ON games(opening);
         """)
-        for key, value in (("source_name", source.name), ("import_summary", summary.describe())):
+        for key, value in (("source_name", "; ".join(p.name for p in sources)),
+                           ("source_files", json.dumps([str(p) for p in sources])),
+                           ("import_summary", summary.describe())):
             connection.execute("INSERT INTO metadata VALUES (?,?)", (key, value))
         connection.commit()
         connection.close()
@@ -222,6 +277,10 @@ def preprocess(raw_path, output_path, progress=None, cancel=None):
             raise Cancelled("Import cancelled. The destination was not changed.")
         os.replace(temporary, destination)
         return summary
+    except sqlite3.Error as exc:
+        if cancel and cancel.is_set():
+            raise Cancelled("Import cancelled. The destination was not changed.") from exc
+        raise AppError(f"Cannot create the database: {exc}. Check available disk space and output permissions.") from exc
     finally:
         if connection is not None:
             connection.close()
@@ -248,3 +307,4 @@ def open_database(filename):
     finally:
         if connection is not None:
             connection.close()
+

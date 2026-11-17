@@ -6,14 +6,14 @@ import argparse
 from pathlib import Path
 import sys
 
-from chess_app.storage import AppError, TIME_CONTROLS, open_database, preprocess
+from chess_app.storage import AppError, TIME_CONTROLS, open_database, preprocess, error_message
 from chess_app.analysis import METRICS, popular_openings, similar_players, top_players
 
 
 def parser():
     result = argparse.ArgumentParser(description="Analyse Lichess chess metadata. Run without arguments to open the GUI.", allow_abbrev=False)
     mode = result.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--raw-data", metavar="FILE", help="Import .pgn.zst or .pgn")
+    mode.add_argument("--raw-data", metavar="PATH", nargs="+", help="Import PGN files or folders into one database")
     mode.add_argument("--popular-openings", action="store_true")
     mode.add_argument("--top10", action="store_true")
     mode.add_argument("--players-similar-to", metavar="NAME")
@@ -107,12 +107,10 @@ def main(argv=None):
         print("Cancelled.", file=sys.stderr)
         return 130
     except Exception as exc:
-        if isinstance(exc, ModuleNotFoundError):
-            print(f"Missing dependency: {exc.name}. Run: python -m pip install -r requirements.txt", file=sys.stderr)
-        else:
-            print(f"Error: {exc}", file=sys.stderr)
+        print(f"Error: {error_message(exc)}", file=sys.stderr)
         return 1
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

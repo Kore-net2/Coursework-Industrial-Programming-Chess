@@ -27,6 +27,84 @@ def pgn(**changes):
 
 
 class AnalyticsTests(unittest.TestCase):
+    def test_batch_import_folder_and_duplicate_paths(self):
+        self.raw.write_text(pgn(), encoding="utf-8")
+        second = self.folder / "second.pgn.zst"
+        second.write_bytes(zstandard.ZstdCompressor().compress(pgn(White="Carol").encode()))
+        summary = preprocess([self.raw, self.folder, second], self.db)
+        self.assertEqual((summary.read, summary.kept), (2, 2))
+        with open_database(self.db) as con:
+            self.assertEqual(con.execute("SELECT count(*) FROM games").fetchone()[0], 2)
+            self.assertEqual(len(top_players(con, "blitz")), 3)
+
+    def test_failure_in_later_archive_preserves_database(self):
+        self.raw.write_text(pgn(), encoding="utf-8")
+        bad = self.folder / "bad.pgn.zst"
+        bad.write_bytes(zstandard.ZstdCompressor().compress(pgn().encode())[:-3])
+        self.db.write_bytes(b"previous database")
+        with self.assertRaisesRegex(AppError, "bad.pgn.zst"):
+            preprocess([self.raw, bad], self.db)
+        self.assertEqual(self.db.read_bytes(), b"previous database")
+        self.assertEqual(list(self.folder.glob(".chess-import-*")), [])
+
+    def test_empty_batch_and_empty_later_file(self):
+        with self.assertRaises(AppError):
+            preprocess([], self.db)
+        with self.assertRaises(AppError):
+            preprocess(self.folder, self.db)
+        self.raw.write_text(pgn(), encoding="utf-8")
+        empty = self.folder / "empty.pgn"
+        empty.write_text("", encoding="utf-8")
+        with self.assertRaisesRegex(AppError, "empty.pgn"):
+            preprocess([self.raw, empty], self.db)
+        self.assertFalse(self.db.exists())
+
+    def test_cli_multiple_files_and_negative_rating(self):
+        self.raw.write_text(pgn(), encoding="utf-8")
+        second = self.folder / "second file.pgn"
+        second.write_text(pgn(White="Carol"), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(main(["--raw-data", str(self.raw), str(second), f"--outfile={self.db}"]), 0)
+        with open_database(self.db) as con:
+            self.assertEqual(popular_openings(con)[0], 2)
+            with self.assertRaisesRegex(AppError, "non-negative"):
+                popular_openings(con, minimum=-1)
+
+    def test_similarity_bounded_ranking_and_generic_ineligibility(self):
+        self.prepare(pgn())
+        class CustomMetric:
+            def profiles(self, con):
+                return {"Alice": 0, **{f"Player{i:02}": i % 3 for i in range(50)}}
+            def distance(self, a, b):
+                return abs(a - b)
+            def describe(self, value):
+                return str(value)
+        with open_database(self.db) as con:
+            _, rows = similar_players(con, "Alice", CustomMetric())
+            self.assertEqual([r["Player"] for r in rows], [f"Player{i:02}" for i in range(0, 30, 3)])
+            with self.assertRaisesRegex(AppError, "selected similarity metric"):
+                similar_players(con, "Bob", CustomMetric())
+
+    def test_permission_and_encoding_errors_preserve_destination(self):
+        from chess_app.storage import error_message
+        self.assertIn("Access denied", error_message(PermissionError(13, "denied", "input.pgn")))
+        self.raw.write_bytes(b"\xff\xfe")
+        self.db.write_bytes(b"previous")
+        with self.assertRaisesRegex(AppError, "UTF-8"):
+            preprocess(self.raw, self.db)
+        self.assertEqual(self.db.read_bytes(), b"previous")
+
+    def test_cancel_during_indexing_preserves_destination(self):
+        self.raw.write_text(pgn(), encoding="utf-8")
+        self.db.write_bytes(b"previous")
+        event = threading.Event()
+        def progress(message):
+            if "indexes" in message:
+                event.set()
+        with self.assertRaises(Cancelled):
+            preprocess(self.raw, self.db, progress, event)
+        self.assertEqual(self.db.read_bytes(), b"previous")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -184,3 +262,4 @@ class AnalyticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

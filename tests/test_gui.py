@@ -12,6 +12,31 @@ from chess_app.gui import ChessApp
 
 
 class DesktopTests(unittest.TestCase):
+    def test_multiple_file_selection_and_black_player_filter(self):
+        from test_app import pgn
+        folder = Path(self.temp.name)
+        first, second = folder / "first game.pgn", folder / "second game.pgn"
+        first.write_text(pgn(White="WhiteOnly", Black="BlackOne"), encoding="utf-8")
+        second.write_text(pgn(White="WhiteOnly", Black="BlackTwo"), encoding="utf-8")
+        with patch("chess_app.gui.filedialog.askopenfilenames", return_value=(str(first), str(second))):
+            self.app.browse_raw()
+        self.app.output_path.set(str(folder / "batch.sqlite"))
+        self.app.import_data()
+        self.wait()
+        self.assertIn("2 games", self.app.stats_label.get())
+        self.app.metric_choice.set("Black openings")
+        self.assertEqual(tuple(self.app.player_combo["values"]), ("BlackOne", "BlackTwo"))
+        self.app.metric_choice.set("Time formats")
+        self.assertIn("WhiteOnly", self.app.player_combo["values"])
+        self.app.min_rating.set("-1")
+        self.app.run_openings()
+        self.wait()
+        self.assertEqual(len(self.messages), 1)
+        self.app.min_rating.set("")
+        self.app.run_top()
+        self.wait()
+        self.assertEqual(len(self.app.top_table.get_children()), 3)
+
     def setUp(self):
         self.app = ChessApp()
         self.app.withdraw()
@@ -74,3 +99,4 @@ class DesktopTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
