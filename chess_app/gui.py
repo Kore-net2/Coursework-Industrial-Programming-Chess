@@ -18,8 +18,8 @@ class ChessApp(tk.Tk):
         configure_tk()
         super().__init__()
         self.title("Chess Analytics | F20SC")
-        self.geometry("1120x800")
-        self.minsize(920, 680)
+        self.geometry("1200x850")
+        self.minsize(1060, 760)
         self.database = None
         self.player_names = []
         self.events = queue.Queue()
@@ -39,34 +39,71 @@ class ChessApp(tk.Tk):
         self.after(100, self.poll)
 
     def style_ui(self):
+        # clam is bundled with Tk: all styling below uses standard ttk controls.
         style = ttk.Style(self)
-        for theme in ("vista", "xpnative", "winnative"):
-            if theme in style.theme_names():
-                style.theme_use(theme)
-                break
-        self.ui_font = tkfont.nametofont("TkDefaultFont")
+        style.theme_use("clam")
+        self.palette = {"page": "#181c23", "panel": "#222832", "field": "#161b22",
+                        "text": "#edf1f7", "muted": "#a7b3c4", "border": "#3c4655",
+                        "accent": "#386fc6", "hover": "#487fd6", "selected": "#294c78"}
+        c = self.palette
+        self.ui_font = tkfont.nametofont("TkDefaultFont").copy()
+        self.ui_font.configure(size=max(10, abs(self.ui_font.cget("size"))))
         self.title_font = self.ui_font.copy()
-        self.title_font.configure(size=abs(self.ui_font.cget("size")) * 2, weight="bold")
+        self.title_font.configure(size=24, weight="bold")
         self.section_font = self.ui_font.copy()
-        self.section_font.configure(size=abs(self.ui_font.cget("size")) + 3, weight="bold")
+        self.section_font.configure(size=15, weight="bold")
         self.heading_font = self.ui_font.copy()
         self.heading_font.configure(weight="bold")
         self.option_add("*Font", self.ui_font)
-        background = style.lookup("TFrame", "background") or self.cget("background")
-        self.configure(background=background)
-        style.configure(".", font=self.ui_font)
-        style.configure("Title.TLabel", font=self.title_font)
-        style.configure("Subtitle.TLabel", font=self.ui_font)
-        style.configure("TButton", padding=(12, 7))
-        style.configure("Treeview", font=self.ui_font, rowheight=self.ui_font.metrics("linespace") + 12)
-        style.configure("Treeview.Heading", font=self.heading_font, padding=7)
-        style.configure("TNotebook.Tab", font=self.ui_font, padding=(18, 10))
-
-    def chart_color(self, name, fallback):
-        try:
-            return "#" + "".join(f"{component // 257:02x}" for component in self.winfo_rgb(name))
-        except tk.TclError:
-            return fallback
+        self.option_add("*Background", c["panel"])
+        self.option_add("*Foreground", c["text"])
+        self.option_add("*selectBackground", c["selected"])
+        self.option_add("*selectForeground", c["text"])
+        self.option_add("*TCombobox*Listbox.font", self.ui_font)
+        self.option_add("*TCombobox*Listbox.background", c["field"])
+        self.option_add("*TCombobox*Listbox.foreground", c["text"])
+        self.configure(background=c["page"])
+        style.configure(".", font=self.ui_font, background=c["panel"], foreground=c["text"],
+                        bordercolor=c["border"], lightcolor=c["border"], darkcolor=c["border"])
+        style.configure("TFrame", background=c["panel"])
+        style.configure("Page.TFrame", background=c["page"])
+        style.configure("TLabel", background=c["panel"], foreground=c["text"])
+        style.configure("Title.TLabel", background=c["page"], font=self.title_font)
+        style.configure("Intro.TLabel", background=c["page"], foreground=c["muted"])
+        style.configure("Subtitle.TLabel", foreground=c["muted"])
+        style.configure("Page.TLabel", background=c["page"], foreground=c["muted"])
+        style.configure("TButton", padding=(14, 9), background=c["panel"], foreground=c["text"],
+                        borderwidth=1, relief="flat", focusthickness=2, focuscolor=c["accent"])
+        style.map("TButton", background=[("disabled", c["page"]), ("pressed", c["selected"]), ("active", c["border"])],
+                  foreground=[("disabled", "#788596")])
+        style.configure("Accent.TButton", background=c["accent"], foreground="white", font=self.heading_font)
+        style.map("Accent.TButton", background=[("disabled", c["border"]), ("pressed", c["selected"]), ("active", c["hover"])],
+                  foreground=[("disabled", c["muted"]), ("!disabled", "white")])
+        for name in ("TEntry", "TCombobox"):
+            style.configure(name, fieldbackground=c["field"], foreground=c["text"],
+                            insertcolor=c["text"], padding=8, arrowcolor=c["muted"])
+            style.map(name, fieldbackground=[("readonly", c["field"])],
+                      foreground=[("disabled", "#788596"), ("readonly", c["text"])],
+                      bordercolor=[("focus", c["accent"]), ("!focus", c["border"])],
+                      selectbackground=[("!disabled", c["selected"])], selectforeground=[("!disabled", "white")])
+        style.configure("Treeview", font=self.ui_font, background=c["panel"], fieldbackground=c["panel"],
+                        foreground=c["text"], rowheight=self.ui_font.metrics("linespace") + 18, borderwidth=0)
+        style.map("Treeview", background=[("selected", c["selected"])], foreground=[("selected", "white")])
+        style.configure("Treeview.Heading", font=self.heading_font, background=c["field"],
+                        foreground=c["muted"], padding=(10, 12), relief="flat")
+        style.map("Treeview.Heading", background=[("active", c["border"])])
+        style.configure("TNotebook", background=c["page"], borderwidth=0, tabmargins=(0, 8, 0, 0))
+        style.configure("TNotebook.Tab", font=self.ui_font, background=c["page"], foreground=c["muted"],
+                        padding=(20, 13), borderwidth=0)
+        # Override clam's selected-tab padding so selection never changes geometry.
+        style.map("TNotebook.Tab", background=[("selected", c["panel"]), ("active", c["border"])],
+                  foreground=[("selected", "white"), ("active", "white")],
+                  padding=[("selected", (20, 13)), ("!selected", (20, 13))],
+                  expand=[("selected", (0, 0, 0, 0)), ("!selected", (0, 0, 0, 0))])
+        style.configure("Horizontal.TProgressbar", background=c["accent"], troughcolor=c["field"], borderwidth=0)
+        for name in ("Vertical.TScrollbar", "Horizontal.TScrollbar"):
+            style.configure(name, background=c["border"], troughcolor=c["panel"], arrowcolor=c["muted"], borderwidth=0)
+            style.map(name, background=[("active", "#59677a")])
 
     def action(self, parent, text, command, accent=False):
         button = ttk.Button(parent, text=text, command=lambda: self.guard(command),
@@ -81,11 +118,11 @@ class ChessApp(tk.Tk):
             messagebox.showerror("Unable to complete task", str(exc), parent=self)
 
     def build_ui(self):
-        body = ttk.Frame(self, padding=24)
+        body = ttk.Frame(self, padding=28, style="Page.TFrame")
         body.pack(fill="both", expand=True)
         ttk.Label(body, text="Chess Analytics", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(body, text="Explore openings. Track improvement. Discover similar players.", style="Subtitle.TLabel").pack(anchor="w", pady=(2, 18))
-        dataset = ttk.Frame(body)
+        ttk.Label(body, text="Your games, in perspective. Explore openings, progress and playing styles.", style="Intro.TLabel").pack(anchor="w", pady=(2, 18))
+        dataset = ttk.Frame(body, padding=(18, 16))
         dataset.pack(fill="x", pady=(0, 12))
         self.action(dataset, "Open database", self.load_dialog, True).pack(side="right")
         ttk.Label(dataset, textvariable=self.file_label, font=self.heading_font).pack(anchor="w")
@@ -102,13 +139,13 @@ class ChessApp(tk.Tk):
         self.build_openings()
         self.build_top()
         self.build_similar()
-        footer = ttk.Frame(body)
+        footer = ttk.Frame(body, style="Page.TFrame")
         footer.pack(fill="x", pady=(12, 0))
         self.progress = ttk.Progressbar(footer, mode="indeterminate", length=120)
         self.progress.pack(side="right", padx=10)
         self.cancel_button = ttk.Button(footer, text="Cancel task", command=self.cancel.set, state="disabled")
         self.cancel_button.pack(side="right")
-        ttk.Label(footer, textvariable=self.status, wraplength=700, style="Subtitle.TLabel").pack(side="left", fill="x", expand=True)
+        ttk.Label(footer, textvariable=self.status, wraplength=740, style="Page.TLabel").pack(side="left", fill="x", expand=True)
 
     def build_import(self):
         ttk.Label(self.import_tab, text="Prepare your dataset", font=self.section_font).pack(anchor="w")
@@ -122,7 +159,7 @@ class ChessApp(tk.Tk):
             ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True, padx=(0, 10))
             self.action(row, "Browse…", browse).pack(side="right")
         self.action(self.import_tab, "Import and open dataset", self.import_data, True).pack(anchor="w", pady=20)
-        self.import_log = tk.Text(self.import_tab, height=9, wrap="word", relief="sunken", borderwidth=1, padx=14, pady=14, font=self.ui_font, state="disabled")
+        self.import_log = tk.Text(self.import_tab, height=9, wrap="word", relief="flat", borderwidth=0, highlightthickness=1, highlightbackground=self.palette["border"], background=self.palette["field"], foreground=self.palette["muted"], insertbackground=self.palette["text"], padx=18, pady=18, font=self.ui_font, state="disabled")
         self.import_log.pack(fill="both", expand=True)
         self.log("Import details appear here.\n\nMissing or invalid metadata is counted and reported.\nExisting output files are replaced only after a successful import.")
 
@@ -141,7 +178,7 @@ class ChessApp(tk.Tk):
         ttk.Label(self.openings_tab, text="Leave rating limits blank for an unbounded range. Both bounds are inclusive.", style="Subtitle.TLabel").pack(anchor="w")
         self.chart_frame = ttk.Frame(self.openings_tab)
         self.chart_frame.pack(fill="both", expand=True, pady=(12, 0))
-        self.chart_hint = ttk.Label(self.chart_frame, text="Open a dataset, select filters and click Show chart.", anchor="center")
+        self.chart_hint = ttk.Label(self.chart_frame, text="Your opening repertoire\n\nOpen a dataset and select Show chart to explore the most popular openings.", anchor="center")
         self.chart_hint.pack(fill="both", expand=True)
 
     def table(self, parent, columns):
@@ -159,6 +196,7 @@ class ChessApp(tk.Tk):
         for column in columns:
             table.heading(column, text=column)
             table.column(column, width=420 if column == "Profile" else 155, minwidth=100, anchor="w")
+        table.tag_configure("alternate", background="#272f3b")
         return table
 
     def build_top(self):
@@ -176,16 +214,18 @@ class ChessApp(tk.Tk):
         row.pack(fill="x")
         self.search = tk.StringVar()
         self.selected_player = tk.StringVar()
-        ttk.Label(row, text="Find player").pack(side="left", padx=(0, 8))
-        ttk.Entry(row, textvariable=self.search, width=18).pack(side="left")
-        self.player_combo = ttk.Combobox(row, textvariable=self.selected_player, state="readonly", width=25)
-        self.player_combo.pack(side="left", padx=8)
-        self.search.trace_add("write", lambda *_: self.filter_players())
         self.metric_choice = tk.StringVar(value="Time formats")
-        ttk.Combobox(row, textvariable=self.metric_choice, values=("Time formats", "Black openings"), state="readonly", width=16).pack(side="left")
-        self.action(row, "Find similar", self.run_similar, True).pack(side="left", padx=8)
-        self.target_label = tk.StringVar(value="Choose a player from the dataset. Smaller distance means greater similarity.")
-        ttk.Label(self.similar_tab, textvariable=self.target_label, wraplength=940, style="Subtitle.TLabel").pack(anchor="w", pady=(14, 0))
+        for column, label in enumerate(("Search players", "Player", "Compare by")):
+            ttk.Label(row, text=label, style="Subtitle.TLabel").grid(row=0, column=column, sticky="w", pady=(0, 7))
+            row.columnconfigure(column, weight=1)
+        ttk.Entry(row, textvariable=self.search, width=16).grid(row=1, column=0, sticky="ew", padx=(0, 12))
+        self.player_combo = ttk.Combobox(row, textvariable=self.selected_player, state="readonly", width=20)
+        self.player_combo.grid(row=1, column=1, sticky="ew", padx=(0, 12))
+        self.search.trace_add("write", lambda *_: self.filter_players())
+        ttk.Combobox(row, textvariable=self.metric_choice, values=("Time formats", "Black openings"), state="readonly", width=16).grid(row=1, column=2, sticky="ew", padx=(0, 12))
+        self.action(row, "Find similar", self.run_similar, True).grid(row=1, column=3, sticky="e")
+        self.target_label = tk.StringVar(value="Choose a player to discover their closest matches. Smaller distance means greater similarity.")
+        ttk.Label(self.similar_tab, textvariable=self.target_label, wraplength=940, style="Subtitle.TLabel").pack(anchor="w", pady=(18, 0))
         self.similar_table = self.table(self.similar_tab, ("Player", "Distance", "Profile"))
 
     def log(self, text):
@@ -283,9 +323,8 @@ class ChessApp(tk.Tk):
         self.chart_hint.pack_forget()
         self.last_figure = opening_figure(
             total, rows, subtitle, font_family=self.ui_font.actual("family"),
-            colors={"background": self.chart_color("SystemWindow", "white"),
-                    "text": self.chart_color("SystemWindowText", "black"),
-                    "accent": self.chart_color("SystemHighlight", "#0078d7")})
+            colors={"background": self.palette["panel"],
+                    "text": self.palette["text"], "accent": "#78a9f4"})
         self.chart_canvas = FigureCanvasTkAgg(self.last_figure, master=self.chart_frame)
         self.chart_toolbar = NavigationToolbar2Tk(self.chart_canvas, self.chart_frame, pack_toolbar=False)
         self.chart_toolbar.pack(side="bottom", fill="x")
@@ -318,8 +357,8 @@ class ChessApp(tk.Tk):
 
     def fill_table(self, table, rows):
         table.delete(*table.get_children())
-        for row in rows:
-            table.insert("", "end", values=[f"{value:.4f}" if isinstance(value, float) else value for value in row.values()])
+        for index, row in enumerate(rows):
+            table.insert("", "end", tags=("alternate",) if index % 2 else (), values=[f"{value:.4f}" if isinstance(value, float) else value for value in row.values()])
         self.status.set(f"{len(rows)} players found." if rows else "No matching players in this dataset.")
 
     def start_task(self, label, work, done):
