@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.build-venv/
+build/
+dist/
+Windows/
+Windows-build/
+*.log

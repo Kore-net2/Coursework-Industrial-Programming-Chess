@@ -1,0 +1,106 @@
+Third-party dependencies used in this application/build.
+Application implementation assistance: OpenAI Codex, 2026-11-16.
+
+altgraph 0.17.5
+  Documentation, https://altgraph.readthedocs.io/en/latest/
+  Issue tracker, https://github.com/ronaldoussoren/altgraph/issues
+  Repository, https://github.com/ronaldoussoren/altgraph
+  https://altgraph.readthedocs.io
+
+chess 1.11.2
+  Documentation, https://python-chess.readthedocs.io
+  https://github.com/niklasf/python-chess
+
+contourpy 1.4.0
+  Homepage, https://github.com/contourpy/contourpy
+  Changelog, https://contourpy.readthedocs.io/en/latest/changelog.html
+  Documentation, https://contourpy.readthedocs.io
+  Repository, https://github.com/contourpy/contourpy
+
+cycler 0.12.1
+  homepage, https://matplotlib.org/cycler/
+  repository, https://github.com/matplotlib/cycler
+
+fonttools 4.68.0
+  http://github.com/fonttools/fonttools
+
+kiwisolver 1.4.9
+  homepage, https://github.com/nucleic/kiwi
+  documentation, https://kiwisolver.readthedocs.io/en/latest/
+  repository, https://github.com/nucleic/kiwi
+  changelog, https://github.com/nucleic/kiwi/blob/main/releasenotes.rst
+
+matplotlib 3.10.7
+  Homepage, https://matplotlib.org
+  Download, https://matplotlib.org/stable/install/index.html
+  Documentation, https://matplotlib.org
+  Source Code, https://github.com/matplotlib/matplotlib
+  Bug Tracker, https://github.com/matplotlib/matplotlib/issues
+  Forum, https://discourse.matplotlib.org/
+  Donate, https://numfocus.org/donate-to-matplotlib
+
+numpy 2.3.4
+  homepage, https://numpy.org
+  documentation, https://numpy.org/doc/
+  source, https://github.com/numpy/numpy
+  download, https://pypi.org/project/numpy/#files
+  tracker, https://github.com/numpy/numpy/issues
+  release notes, https://numpy.org/doc/stable/release
+
+packaging 26.3
+  Documentation, https://packaging.pypa.io/
+  Source, https://github.com/pypa/packaging
+
+pefile 2023.2.7
+  https://github.com/erocarrera/pefile
+
+pillow 13.0.0
+  Release notes, https://pillow.readthedocs.io/en/stable/releasenotes/index.html
+  Changelog, https://github.com/python-pillow/Pillow/releases
+  Documentation, https://pillow.readthedocs.io
+  Funding, https://tidelift.com/lifter/search/pypi/pillow
+  Homepage, https://python-pillow.org
+  Mastodon, https://fosstodon.org/@pillow
+  Security, https://pillow.readthedocs.io/en/stable/handbook/security.html
+  Source, https://github.com/python-pillow/Pillow
+
+pyinstaller 6.16.0
+  Homepage, https://pyinstaller.org
+  Documentation, https://pyinstaller.org
+  Source Code, https://github.com/pyinstaller/pyinstaller
+  Release Notes, https://pyinstaller.org/en/stable/CHANGES.html
+
+pyinstaller-hooks-contrib 2026.10
+  https://github.com/pyinstaller/pyinstaller-hooks-contrib
+
+pyparsing 3.3.3
+  Documentation, https://pyparsing-docs.readthedocs.io/en/latest/
+  Homepage, https://github.com/pyparsing/pyparsing/
+  Source, https://github.com/pyparsing/pyparsing.git
+
+python-chess 1.999
+  Documentation, https://python-chess.readthedocs.io
+  https://github.com/niklasf/python-chess
+
+python-dateutil 4.0.0
+  Homepage, https://github.com/dateutil/dateutil
+  Documentation, https://dateutil.readthedocs.io/en/stable/
+  Source, https://github.com/dateutil/dateutil
+
+pywin32-ctypes 0.2.3
+  https://github.com/enthought/pywin32-ctypes
+
+setuptools 84.2.1
+  Source, https://github.com/pypa/setuptools
+  Documentation, https://setuptools.pypa.io/
+  Changelog, https://setuptools.pypa.io/en/stable/history.html
+
+tzdata 2026.6
+  Bug Reports, https://github.com/python/tzdata/issues
+  Source, https://github.com/python/tzdata
+  Documentation, https://tzdata.python.org
+  https://github.com/python/tzdata
+
+zstandard 0.25.0
+  Homepage, https://github.com/indygreg/python-zstandard
+  Documentation, https://python-zstandard.readthedocs.io/en/latest/
