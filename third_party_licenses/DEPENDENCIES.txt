@@ -1,5 +1,4 @@
 Third-party dependencies used in this application/build.
-Application implementation assistance: OpenAI Codex, 2026-11-16.
 
 altgraph 0.17.5
   Documentation, https://altgraph.readthedocs.io/en/latest/

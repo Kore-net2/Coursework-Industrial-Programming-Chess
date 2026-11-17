@@ -89,7 +89,7 @@ To rebuild the Windows executables, use `build_windows.ps1` with Python installe
 
 ## Sources and attribution
 
-Implementation developed with assistance from **OpenAI Codex, 16 November 2026**. Review and understand the code and retain this acknowledgement when adapting it for coursework. The synthetic demo is generated locally and contains no actual player data.
+The synthetic demo is generated locally and contains no actual player data.
 
 - [python-chess PGN metadata skimming](https://python-chess.readthedocs.io/en/latest/pgn.html#skimming)
 - [python-zstandard decompression APIs](https://python-zstandard.readthedocs.io/en/latest/decompressor.html)

@@ -1,6 +1,5 @@
 """Tkinter desktop interface; expensive operations run away from the UI thread.
 
-Implementation assistance: OpenAI Codex (2026-11-16).
 """
 from pathlib import Path
 import queue

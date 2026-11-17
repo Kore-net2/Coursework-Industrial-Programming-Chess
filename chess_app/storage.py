@@ -2,7 +2,6 @@
 
 Sources: https://python-chess.readthedocs.io/en/latest/pgn.html#skimming
 https://python-zstandard.readthedocs.io/en/latest/decompressor.html
-Implementation assistance: OpenAI Codex (2026-11-16).
 """
 from contextlib import contextmanager
 from dataclasses import dataclass, field

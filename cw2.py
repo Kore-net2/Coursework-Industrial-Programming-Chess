@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Coursework CLI entry point. With no arguments, launch the desktop GUI.
 
-Implementation assistance: OpenAI Codex (2026-11-16).
 """
 import argparse
 from pathlib import Path

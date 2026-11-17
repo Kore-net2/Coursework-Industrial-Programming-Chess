@@ -1,6 +1,5 @@
 """SQL analytics and interchangeable player-similarity strategies.
 
-Implementation assistance: OpenAI Codex (2026-11-16).
 """
 from dataclasses import dataclass
 from math import dist
